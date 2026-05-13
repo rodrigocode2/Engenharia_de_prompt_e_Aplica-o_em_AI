@@ -1,0 +1,58 @@
+import os
+# Linha 3: Sua chave configurada diretamente
+os.environ['GROQ_API_KEY'] = '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'
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
+from langchain_community.document_loaders import WebBaseLoader # Para ler sites
+
+# ==========================================
+# CARREGAMENTO DE CONTEXTO (SITES DE PESQUISA)
+# ==========================================
+# Lista de sites confiáveis para o bot consultar
+links_pithon = [
+    "https://docs.python.org/3/", 
+    "https://wiki.python.org/moin/BeginnersGuide",
+    "https://console.groq.com/docs/models"
+]
+
+print("Carregando base de conhecimento...")
+loader = WebBaseLoader(links_pithon)
+contexto_sites = loader.load()
+# Transformamos o conteúdo dos sites em um texto único para o bot
+conteudo_referencia = "\n".join([doc.page_content for doc in contexto_sites])[:10000] # Limitamos para não travar
+
+# ==========================================
+# CONFIGURAÇÃO DO MODELO
+# ==========================================
+chat = ChatGroq(model='llama-3.3-70b-versatile', temperature=0.5)
+
+def resposta_bot(mensagens_anteriores):
+    # Passamos o conteúdo dos sites dentro da instrução de sistema
+    instrucao_sistema = [('system', f'Você é o assistente Minha_IA. Use este conteúdo como referência para responder sobre Python: {conteudo_referencia}')]
+    
+    mensagens_completas = instrucao_sistema + mensagens_anteriores
+    template = ChatPromptTemplate.from_messages(mensagens_completas)
+    chain = template | chat
+    return chain.invoke({}).content
+
+# ==========================================
+# LOOP PRINCIPAL
+# ==========================================
+print('--- Minha_IA com Base de Conhecimento Ativa ---')
+mensagens_historico = []
+
+while True:
+    pergunta = input('Usuário: ')
+    if pergunta.lower() == 'x': break
+    
+    mensagens_historico.append(('user', pergunta))
+    try:
+        resposta = resposta_bot(mensagens_historico)
+        mensagens_historico.append(('assistant', resposta))
+        print(f'Bot: {resposta}\n')
+    except Exception as e:
+        print(f'Erro: {e}')
+        break
+
+print('Até logo!')
